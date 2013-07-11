@@ -1,0 +1,11 @@
+%% -*- mode: erlang -*-
+{application, xlsx,
+ [{description, "xlsx"},
+  {vsn, "1"},
+  {modules,
+   [
+   ]},
+  {registered, []},
+  {env, []},
+  {applications, [kernel, stdlib, z_stdlib]}
+ ]}.
