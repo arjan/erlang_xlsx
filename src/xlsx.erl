@@ -1,14 +1,24 @@
 -module(xlsx).
 
--compile(export_all).
+-export([create/2]).
 
 -record(xlsx, {tmp, files=[], sheets=[]}).
 
 
-out(Xlsx, OutFile) ->
+create(Sheets, OutFile) ->
+    Xlsx0 = xlsx_util:new(),
+    Xlsx1 = Xlsx0#xlsx{sheets=Sheets},
+    {ok, Xlsx2} = lists:foldl(fun({Idx, {_Name, Rows}}, {ok, Acc}) ->
+                                I = integer_to_list(Idx),
+                                xlsx_util:write(
+                                  Acc, "xl/worksheets/sheet" ++ I ++ ".xml",
+                                  xlsx_sheet:encode_sheet(Rows))
+                        end,
+                        {ok, Xlsx1},
+                        numbered_sheets(Xlsx1)),
     {ok, XlsxNew} = lists:foldl(
                       fun(F, {ok, X}) -> F(X) end,
-                      {ok, Xlsx},
+                      {ok, Xlsx2},
                       [fun add_doc_props/1,
                        fun add_relationship_part/1,
                        fun add_styles/1,
@@ -22,10 +32,6 @@ out(Xlsx, OutFile) ->
 numbered_sheets(#xlsx{sheets=Sheets}) ->
     lists:zip(lists:seq(1,length(Sheets)), Sheets).
 
-add_sheet(Xlsx=#xlsx{sheets=Sheets}, SheetName) ->
-    Sheets2 = [SheetName|Sheets],
-    {ok, {length(Sheets2), Xlsx#xlsx{sheets=Sheets2}}}.
-    
 add_workbook_part(Xlsx) ->
     xlsx_util:write(
       Xlsx, "xl/workbook.xml",
@@ -33,12 +39,12 @@ add_workbook_part(Xlsx) ->
 <workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">
 <workbookPr date1904=\"0\" />
 <sheets>">>,
-                     lists:map(fun({Idx, Sheet}) ->
-                                       I = integer_to_list(Idx),
-                                       ["<sheet name=\"", Sheet, "\" sheetId=\"", I, "\" r:id=\"#sheet", I, "\"/>"]
-                               end,
-                               numbered_sheets(Xlsx)),
-        "</sheets></workbook>"]).
+       lists:map(fun({Idx, {SheetName, _Rows}}) ->
+                         I = integer_to_list(Idx),
+                         ["<sheet name=\"", z_html:escape(SheetName), "\" sheetId=\"", I, "\" r:id=\"sheet", I, "\"/>"]
+                 end,
+                 numbered_sheets(Xlsx)),
+       "</sheets></workbook>"]).
 
 add_workbook_relationship_part(Xlsx) ->
     xlsx_util:write(
@@ -49,14 +55,13 @@ add_workbook_relationship_part(Xlsx) ->
        "<Relationship Id=\"rId0\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>",
        lists:map(fun({Idx, _Sheet}) ->
                          I = integer_to_list(Idx),
-                         ["<Relationship Id=\"sheet", I, "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet#", I, ".xml\"/>"]
+                         ["<Relationship Id=\"sheet", I, "\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet", I, ".xml\"/>"]
                  end,
                  numbered_sheets(Xlsx)),
        "<Relationship Id=\"rId99\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings\" Target=\"xl/sharedStrings.xml\"/>"
       ]).
 
 add_content_types(Xlsx) ->
-    Sheets = xlsx_util:get_sheets(Xlsx),
     xlsx_util:write(
       Xlsx, "[Content_Types].xml",
       ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
@@ -68,12 +73,13 @@ add_content_types(Xlsx) ->
        "<Override PartName=\"/xl/_rels/workbook.xml.rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>",
        "<Override PartName=\"/xl/sharedStrings.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml\"/>",
 
-       lists:map(fun({Idx, Sheet}) ->
+       lists:map(fun({Idx, _Sheet}) ->
                          I = integer_to_list(Idx),
                          ["<Override PartName=\"/xl/worksheets/sheet", I, ".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>"]
                  end,
                  numbered_sheets(Xlsx)),
-       "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>"
+       "<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>",
+       "</Types>"
       ]).
 
 add_relationship_part(Xlsx) ->
