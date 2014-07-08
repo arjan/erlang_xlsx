@@ -4,18 +4,17 @@
 
 -record(xlsx, {tmp, files=[], sheets=[]}).
 
-
 create(Sheets, OutFile) ->
     Xlsx0 = xlsx_util:new(),
     Xlsx1 = Xlsx0#xlsx{sheets=Sheets},
-    {ok, Xlsx2} = lists:foldl(fun({Idx, {_Name, Rows}}, {ok, Acc}) ->
+    {ok, Xlsx2} = lists:foldl(fun({Idx, {_Name, Rows, ColInfo}}, {ok, Acc}) ->
                                 I = integer_to_list(Idx),
                                 xlsx_util:write(
                                   Acc, "xl/worksheets/sheet" ++ I ++ ".xml",
-                                  xlsx_sheet:encode_sheet(Rows))
+                                  xlsx_sheet:encode_sheet(Rows, ColInfo))
                         end,
                         {ok, Xlsx1},
-                        numbered_sheets(Xlsx1)),
+                              numbered_sheets(Xlsx1)),
     {ok, XlsxNew} = lists:foldl(
                       fun(F, {ok, X}) -> F(X) end,
                       {ok, Xlsx2},
@@ -39,7 +38,7 @@ add_workbook_part(Xlsx) ->
 <workbook xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">
 <workbookPr date1904=\"0\" />
 <sheets>">>,
-       lists:map(fun({Idx, {SheetName, _Rows}}) ->
+       lists:map(fun({Idx, {SheetName, _Rows, _ColInfo}}) ->
                          I = integer_to_list(Idx),
                          ["<sheet name=\"", z_html:escape(SheetName), "\" sheetId=\"", I, "\" r:id=\"sheet", I, "\"/>"]
                  end,
@@ -120,12 +119,12 @@ add_styles(Xlsx) ->
        "<styleSheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">",
        "<numFmts count=\"7\">",
        "<numFmt formatCode=\"GENERAL\" numFmtId=\"164\"/>",
-       "<numFmt formatCode=\"&quot;TRUE&quot;;&quot;TRUE&quot;;&quot;FALSE&quot;\" numFmtId=\"170\"/>",
+       "<numFmt formatCode=\"&quot;yes&quot;;&quot;yes&quot;;&quot;no&quot;\" numFmtId=\"170\"/>",
        "</numFmts>",
        "<fonts count=\"5\">",
-       "  <font><name val=\"Mangal\"/><family val=\"2\"/><sz val=\"10\"/></font>"
-       "  <font><name val=\"Arial\"/><family val=\"0\"/><sz val=\"10\"/></font>"
-       "  <font><name val=\"Arial\"/><family val=\"0\"/><sz val=\"10\"/></font>"
+       "  <font><name val=\"Arial\"/><family val=\"2\"/><sz val=\"10\"/></font>"
+       "  <font><name val=\"Arial\"/><family val=\"0\"/><sz val=\"10\"/><b val=\"true\"/></font>"
+       "  <font><name val=\"Arial\"/><family val=\"0\"/><sz val=\"10\"/><i val=\"true\"/></font>"
        "  <font><name val=\"Arial\"/><family val=\"0\"/><sz val=\"10\"/></font>"
        "  <font><name val=\"Arial\"/><family val=\"2\"/><sz val=\"10\"/></font>"
        "</fonts>"
@@ -161,14 +160,23 @@ add_styles(Xlsx) ->
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"1\" numFmtId=\"42\"></xf>"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"1\" numFmtId=\"9\"></xf>"
        "  </cellStyleXfs>"
-       "<cellXfs count=\"7\">"
+       "<cellXfs count=\"10\">"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"false\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"164\" xfId=\"0\"></xf>"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"22\" xfId=\"0\"></xf>"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"15\" xfId=\"0\"></xf>"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"false\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"1\" xfId=\"0\"></xf>"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"false\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"2\" xfId=\"0\"></xf>"
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"49\" xfId=\"0\"></xf>"
+       %% boolean
        "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"false\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"4\" numFmtId=\"170\" xfId=\"0\"></xf>"
+       %% string bold
+       "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"1\" numFmtId=\"49\" xfId=\"0\"></xf>"
+       %% string italic
+       "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"0\" fontId=\"2\" numFmtId=\"49\" xfId=\"0\"></xf>"
+
+       %% string filled
+       "  <xf applyAlignment=\"false\" applyBorder=\"false\" applyFont=\"true\" applyProtection=\"false\" borderId=\"0\" fillId=\"1\" fontId=\"0\" numFmtId=\"49\" xfId=\"0\"></xf>"
+       
        "</cellXfs>"
        "<cellStyles count=\"6\"><cellStyle builtinId=\"0\" customBuiltin=\"false\" name=\"Normal\" xfId=\"0\"/>"
        "  <cellStyle builtinId=\"3\" customBuiltin=\"false\" name=\"Comma\" xfId=\"15\"/>"
